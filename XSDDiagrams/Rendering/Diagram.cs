@@ -1,5 +1,5 @@
 //    XSDDiagram - A XML Schema Definition file viewer
-//    Copyright (C) 2006-2011  Regis COSNIER
+//    Copyright (C) 2006-2019  Regis COSNIER
 //    
 //    The content of this file is subject to the terms of either
 //    the GNU Lesser General Public License only (LGPL) or
@@ -23,6 +23,9 @@ namespace XSDDiagram.Rendering
 
         private bool _showBoundingBox;
         private bool _showDocumentation;
+        private bool _alwaysShowOccurence;
+        private bool _showType;
+        private bool _compactLayoutDensity;
         private Size _size;
 		private Size _padding;
         private float _scale;
@@ -65,7 +68,6 @@ namespace XSDDiagram.Rendering
             _lastSearchText = String.Empty;
             _lastSearchHitElementIndex = 0;
             _lastSearchHitElements = new List<DiagramItem>();
-
         }
 
         #endregion
@@ -79,6 +81,9 @@ namespace XSDDiagram.Rendering
 		public DiagramAlignement Alignement { get { return _alignement; } set { _alignement = value; } }
         public bool ShowBoundingBox { get { return _showBoundingBox; } set { _showBoundingBox = value; } }
         public bool ShowDocumentation { get { return _showDocumentation; } set { _showDocumentation = value; } }
+        public bool AlwaysShowOccurence { get { return _alwaysShowOccurence; } set { _alwaysShowOccurence = value; } }
+        public bool ShowType { get { return _showType; } set { _showType = value; } }
+        public bool CompactLayoutDensity { get { return _compactLayoutDensity; } set { _compactLayoutDensity = value; } }
 
         public Font Font { get { return _font; } set { _font = value; } }
         public Font FontScaled { get { return _fontScaled; } set { _fontScaled = value; } }
@@ -155,9 +160,12 @@ namespace XSDDiagram.Rendering
 
 				childDiagramElement.Diagram = this;
 				childDiagramElement.TabSchema = childElement;
-				childDiagramElement.Name = childElement.name != null ? childElement.name : "";
-				childDiagramElement.NameSpace = nameSpace;
-				childDiagramElement.ItemType = DiagramItemType.element;
+                childDiagramElement.Name = childElement.name != null ? childElement.name : "";
+                childDiagramElement.NameSpace = nameSpace;
+                string type = childDiagramElement.GetTypeAnnotation();
+                if (!String.IsNullOrEmpty(type))
+                    childDiagramElement.Type = type;
+                childDiagramElement.ItemType = DiagramItemType.element;
 				int occurrence;
 				if (int.TryParse(referenceElement != null ? referenceElement.minOccurs : childElement.minOccurs, out occurrence))
 					childDiagramElement.MinOccurrence = occurrence;
@@ -238,8 +246,8 @@ namespace XSDDiagram.Rendering
 			{
 				DiagramItem childDiagramElement = new DiagramItem();
 				childDiagramElement.Diagram = this;
-				childDiagramElement.TabSchema = childElement;
-				childDiagramElement.Name = childElement.name != null ? childElement.name : "";
+				childDiagramElement.TabSchema = childElement;                
+                childDiagramElement.Name = childElement.name != null ? childElement.name : "";
 				childDiagramElement.NameSpace = nameSpace;
 				childDiagramElement.ItemType = DiagramItemType.type;
 				childDiagramElement.MinOccurrence = 1;
@@ -434,17 +442,19 @@ namespace XSDDiagram.Rendering
 			_rootElements.Clear();
 		}
 
-		public void ExpandOneLevel()
+		public bool ExpandOneLevel()
 		{
+            bool result = false;
 			foreach (DiagramItem item in _rootElements)
 			{
-                this.ExpandOneLevel(item);
+                result |= this.ExpandOneLevel(item);
 
                 if (item.HasChildElements && item.ChildElements.Count == 0)
                 {
-                    this.ExpandChildren(item);
+                    result |= this.ExpandChildren(item);
                 }
 			}
+            return result;
 		}
 
 		public void Clear()
@@ -592,11 +602,13 @@ namespace XSDDiagram.Rendering
                 (int)Math.Round(rectangle.Height * this.Scale));
 		}
 
-		public void ExpandChildren(DiagramItem parentDiagramElement)
+		public bool ExpandChildren(DiagramItem parentDiagramElement)
 		{
+            bool result = false;
             ClearSearch();
             if (parentDiagramElement.ItemType == DiagramItemType.element || parentDiagramElement.ItemType == DiagramItemType.type)
 			{
+                result = true;
 				DiagramItem diagramElement = parentDiagramElement;
 				if (diagramElement.TabSchema is XMLSchema.element)
 				{
@@ -641,7 +653,8 @@ namespace XSDDiagram.Rendering
 			}
 			else if (parentDiagramElement.ItemType == DiagramItemType.group)
 			{
-				DiagramItem diagramCompositors = parentDiagramElement;
+                result = true;
+                DiagramItem diagramCompositors = parentDiagramElement;
 				XMLSchema.group group = diagramCompositors.TabSchema as XMLSchema.group;
 
                 if (group.Items != null)
@@ -683,6 +696,7 @@ namespace XSDDiagram.Rendering
                     AddAny(diagramCompositors, null, diagramCompositors.NameSpace);
                 }
 			}
+            return result;
         }
 
         public void SelectElement(DiagramItem element)
@@ -919,18 +933,20 @@ namespace XSDDiagram.Rendering
 			}
 		}
 
-        private void ExpandOneLevel(DiagramItem parentItem)
+        private bool ExpandOneLevel(DiagramItem parentItem)
         {
+            bool result = false;
             ClearSearch();
             foreach (DiagramItem item in parentItem.ChildElements)
             {
-                this.ExpandOneLevel(item);
+                result |= this.ExpandOneLevel(item);
 
                 if (item.HasChildElements && item.ChildElements.Count == 0)
                 {
-                    this.ExpandChildren(item);
+                    result |= this.ExpandChildren(item);
                 }
             }
+            return result;
         }
 
         #endregion
